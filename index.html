@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+	<title>new app</title>
+	<style type="text/css">
+		body {
+			width: 100%;
+			height: 100%;
+			background-color: #202020;
+		}
+
+		div {
+			position: absolute;
+			height: 100%;
+			width: 100%;
+			display: table;
+		}
+
+		#main-video {
+			width: 100%;
+			height: 100%;
+		}
+
+		h1 {
+			display: table-cell;
+			vertical-align: middle;
+			text-align: center;
+			color: #FFFFFF;
+		}
+
+	</style>
+</head>
+
+<script src="webOSTVjs-1.2.4/webOSTV.js" charset="utf-8"></script>
+<script src="webOSTVjs-1.2.4/webOSTV-dev.js" charset="utf-8"></script>
+<script type="text/javascript">
+	//sample code for calling LS2 API
+	webOS.service.request("luna://com.palm.systemservice", {
+		method: "clock/getTime",
+		parameters: {},
+		onSuccess: function (args) {
+			console.log("UTC:", args.utc);
+		},
+		onFailure: function (args) {
+			console.log("Failed to getTime");
+		}
+	});
+
+	(() => {
+		'use strict';
+
+		//check for support
+		if (!('indexedDB' in window)) {
+			console.log('This browser doesn\'t support IndexedDB');
+			return;
+		}
+
+		function insertVideo(item){
+			const dbs = indexedDB.open("bagiklan", 1);
+			dbs.onsuccess = function(){
+				const db = dbs.result;
+				const tx = db.transaction('videos', 'readwrite');
+				const store = tx.objectStore('videos')
+				const query = store.put(item)
+				query.onsuccess = function (event) {
+				};
+				query.onerror = function (event) {
+					console.log(event.target.errorCode);
+				}
+				tx.oncomplete = function(){
+					db.close();
+				}
+			}
+		} 
+
+		async function getVideos(){
+			return new Promise(function(resolve, reject){
+				const dbs = indexedDB.open("bagiklan", 1);
+				let data = [];
+				dbs.onsuccess = function(){
+					const db = dbs.result;
+					const tx = db.transaction('videos', 'readonly');
+					const store = tx.objectStore('videos')
+					const query = store.getAll()
+					query.onsuccess = () => {
+						data = query.result;
+						resolve(data);
+					};
+					// close the database connection
+					tx.oncomplete = function () {
+						db.close();
+					};
+				}
+			})
+		}
+
+		const dbServer = indexedDB.open("bagiklan", 1);
+
+		// Create the schema
+		dbServer.onupgradeneeded = function() {
+			const db = dbServer.result;
+			const videos = db.createObjectStore('videos', {keyPath: 'id', autoIncrement: true});
+			const logs = db.createObjectStore('logs', {keyPath: 'id', autoIncrement: true});
+			const index = videos.createIndex("name", 'name', {unique: true});
+		};
+
+		const initTest = function(){
+			var items = [{
+				id: 1,
+				name: 'cocacola.mp4'
+			},{
+				id: 2,
+				name: 'bananas.mp4'
+			}];
+
+			items.forEach(el => {
+				insertVideo(el)
+			})
+		}
+
+		initTest();
+
+		function playVideos(){
+			getVideos().then(function(data){
+				const videoElement = document.getElementsByTagName('video')[0]
+				let urls = []
+				data.forEach(el => {
+					urls.push("videos/" + el.name)
+				});
+				let index = 0
+				function play(){
+					// const files = document.getElementById('file').files
+					// const file = files[index++ % files.length]
+					// const url = window.URL.createObjectURL(file)
+					if(index >= urls.length){
+						index = 0
+					}
+					const url = urls[index]
+					index++;
+					videoElement.src = url
+					videoElement.load()
+				}
+				videoElement.addEventListener('ended', play, false)
+				play()
+			})
+		}
+
+		playVideos()
+	})()
+</script>
+
+<body>
+	<video id="main-video" src="" autoplay></video>
+</body>
+
+</html>
